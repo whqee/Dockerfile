@@ -1,0 +1,79 @@
+###############################################################################
+
+## Run 'docker build -t env_u16.04 ./' to done building this docker image.
+## Recommended Usage example :
+##   docker run -v /dev/bus/usb:/dev/bus/usb -v ${PWD}/:/workplace -w /workplace --add-host='osc:127.0.0.1' -e --privileged -i --rm -t env_u16.04 /bin/bash
+
+## It's recommended to append alias of above command to .bashrc(.zsh etc.).\
+## For example: \
+##   alias env_u1604="docker run -v /dev/bus/usb:/dev/bus/usb -v ${PWD}/:/workplace -w /workplace --add-host='osc:127.0.0.1' -e --privileged -i --rm -t env_u16.04 /bin/bash"
+
+###############################################################################
+
+# Ubuntu ENV for Android building, added few package for RockChip flashing
+
+FROM ubuntu:16.04
+
+LABEL name=ubuntu
+
+RUN echo \
+"deb http://mirrors.aliyun.com/ubuntu/ xenial main restricted universe multiverse\n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial main restricted universe multiverse\n\
+\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-security main restricted universe multiverse     \n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-security main restricted universe multiverse \n\
+\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-updates main restricted universe multiverse      \n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-updates main restricted universe multiverse  \n\
+\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-proposed main restricted universe multiverse     \n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-proposed main restricted universe multiverse \n\
+\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-backports main restricted universe multiverse    \n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-backports main restricted universe multiverse" \
+> /etc/apt/sources.list
+
+#RUN apt-get update && \
+#while true; do \
+#apt-get -y install locales sudo aptitude curl vim bash-completion build-essential wget git-core unzip iproute2 usbutils  && break; \
+#done;
+
+## for Yocto
+# RUN apt-get update 
+# RUN while (true) do \
+# apt-get -y install gawk wget git-core diffstat unzip texinfo gcc-multilib build-essential chrpath socat cpio python python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping libsdl1.2-dev xterm tar locales && break;\
+# done;
+
+
+## for android 8.1 (Tested on RK3399)
+RUN apt-get update && \
+apt-get -y install locales sudo aptitude curl vim bash-completion wget iproute2 usbutils git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 libncurses5-dev lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils xsltproc unzip openjdk-8-jdk python bc liblz4-tool lsof libcurl4-openssl-dev fontconfig pkg-config libusb-1.0 libudev-dev libusb-1.0-0-dev dh-autoreconf
+
+RUN rm /bin/sh && ln -s bash /bin/sh
+RUN locale-gen en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+
+## Modify user name here
+ENV USER_NAME env
+
+ARG host_uid=1000
+ARG host_gid=1000
+
+## create USER $USER_NAME and add it to group 'sudo' & 'uucp'
+RUN groupadd -g $host_gid $USER_NAME && useradd -g $host_gid -m -s /bin/bash -u $host_uid $USER_NAME
+RUN usermod -aG sudo ${USER_NAME} && usermod -aG uucp ${USER_NAME}
+
+### change $USER_NAME password & root password to "123"
+RUN echo "${USER_NAME}:123" | chpasswd
+RUN echo "root:123" | chpasswd
+#RUN mkdir -p /home/${USER_NAME}
+ENV HOME=/home/${USER_NAME}
+WORKDIR ${HOME}
+
+### Install rkdeveloptool for download images to the board
+RUN git clone https://github.com/rockchip-linux/rkdeveloptool &&\
+cd rkdeveloptool; autoreconf -i && ./configure && make && make install
+
+USER $USER_NAME
+
